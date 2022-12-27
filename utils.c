@@ -56,6 +56,7 @@ void sleep_ms(float ms) {
 
 /*
  * Returns 1 if a key was pressed, 0 otherwise.
+ * https://cboard.cprogramming.com/c-programming/63166-kbhit-linux.html
  */
 int kbhit(void)
 {
@@ -63,25 +64,26 @@ int kbhit(void)
     int ch;
     int oldf;
 
-    tcgetattr(STDIN_FILENO, &oldt);
-    newt = oldt;
-    newt.c_lflag &= ~(ICANON | ECHO);
-    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-    oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
-    fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
+    tcgetattr(STDIN_FILENO, &oldt); // save old settings
+    newt = oldt; // copy old settings to new settings
+    newt.c_lflag &= ~(ICANON | ECHO); // change the new settings to not wait for enter keypress
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt); // apply the new settings immediatly
+    
+    oldf = fcntl(STDIN_FILENO, F_GETFL, 0); // save old fcntl flags
+    fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK); // make fcntl flags non-blocking (return immediately)
 
     ch = getchar();
 
-    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-    fcntl(STDIN_FILENO, F_SETFL, oldf);
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt); // reapply the old settings
+    fcntl(STDIN_FILENO, F_SETFL, oldf); // reapply the old fcntl flags
 
-    if(ch != EOF)
+    if(ch != EOF) // if a character was read
     {
-        ungetc(ch, stdin);
-        return 1;
+        ungetc(ch, stdin); // put the character back into the input stream
+        return 1; // return 1 to indicate that a key was pressed
     }
 
-    return 0;
+    return 0; // return 0 to indicate that no key was pressed
 }
 
 /*
@@ -105,8 +107,10 @@ void draw_game(game_t game) {
         for (int j = 0; j < game.columns_nb; j++) {
             if (game.board_array[i][j] == WALL) {
                 printf("#");
-            } else if (game.board_array[i][j] == BOMBER) {
-                printf("B");
+            } else if (game.board_array[i][j] == BOMBER1) {
+                printf("1");
+            } else if (game.board_array[i][j] == BOMBER2) {
+                printf("2");
             } else if (game.board_array[i][j] == BOMB) {
                 printf("o");
             } else if (game.board_array[i][j] == OBSTACLE) {
@@ -151,7 +155,7 @@ void place_bomber(bomber_t *bomber) {
 
     bomber->pos_l = row;
     bomber->pos_c = col;
-    bomber->game->board_array[row][col] = 2;
+    bomber->game->board_array[row][col] = bomber->id;
 }
 
 /*

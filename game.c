@@ -9,7 +9,11 @@ pthread_mutex_t dmutex = PTHREAD_MUTEX_INITIALIZER;
 //https://stackoverflow.com/questions/41928673/implementing-a-keypress-event-in-c-with-multiple-threads
 void * get_keystrock(void *arg) 
 {
-    bomber_t * bomber = (bomber_t *)arg;
+
+    bombers_array_t * bombers = (bombers_array_t *)arg;
+    bomber_t * bomber1 = bombers->bomber1;
+    bomber_t * bomber2 = bombers->bomber2;
+
     char c;
     tcgetattr(0, &origtc);
     newtc = origtc;
@@ -25,47 +29,75 @@ void * get_keystrock(void *arg)
                 c = getchar();
                 tcsetattr(0, TCSANOW, &origtc);
             }
-
+            
             pthread_mutex_lock(&dmutex);
-            if (c == bomber->up) {
-                bomber->direction = UP;
-            } else if (c == bomber->down) {
-                bomber->direction = DOWN;
-            } else if (c == bomber->left) {
-                bomber->direction = LEFT;
-            } else if (c == bomber->right) {
-                bomber->direction = RIGHT;
+            if (c == bomber1->up) {
+                bomber1->direction = UP;
+            } else if (c == bomber1->down) {
+                bomber1->direction = DOWN;
+            } else if (c == bomber1->left) {
+                bomber1->direction = LEFT;
+            } else if (c == bomber1->right) {
+                bomber1->direction = RIGHT;
             } 
-            else if (c == bomber->bomb) {
-                place_bomb(bomber);
+            else if (c == bomber1->bomb) {
+                place_bomb(bomber1);
+            }
+
+            if (c == bomber2->up) {
+                bomber2->direction = UP;
+            } else if (c == bomber2->down) {
+                bomber2->direction = DOWN;
+            } else if (c == bomber2->left) {
+                bomber2->direction = LEFT;
+            } else if (c == bomber2->right) {
+                bomber2->direction = RIGHT;
+            } 
+            else if (c == bomber2->bomb) {
+                place_bomb(bomber2);
             }
             pthread_mutex_unlock(&dmutex);
         } else {
             pthread_mutex_lock(&dmutex);
-            bomber->direction = IDDLE;
+            printf("IDDLE");
+            bomber1->direction = IDDLE;
+            bomber2->direction = IDDLE;
             pthread_mutex_unlock(&dmutex);
         }
+
+        move(bomber1);
+        move(bomber2);
+
         sleep_ms(1.0 / FPS * 1000);
     }
 }
 
 int can_move(bomber_t * bomber, int direction) {
+    // check if the next position is a wall or an obstacle or out of the board or a bomber
     if (direction == UP) {
         return (bomber->pos_l > 0 
             && bomber->game->board_array[bomber->pos_l - 1][bomber->pos_c] != WALL 
-            && bomber->game->board_array[bomber->pos_l - 1][bomber->pos_c] != OBSTACLE);
+            && bomber->game->board_array[bomber->pos_l - 1][bomber->pos_c] != OBSTACLE
+            && bomber->game->board_array[bomber->pos_l - 1][bomber->pos_c] != BOMBER1
+            && bomber->game->board_array[bomber->pos_l - 1][bomber->pos_c] != BOMBER2);
     } else if (direction == DOWN) {
         return (bomber->pos_l < bomber->game->lines_nb - 1
             && bomber->game->board_array[bomber->pos_l + 1][bomber->pos_c] != WALL
-            && bomber->game->board_array[bomber->pos_l + 1][bomber->pos_c] != OBSTACLE);
+            && bomber->game->board_array[bomber->pos_l + 1][bomber->pos_c] != OBSTACLE
+            && bomber->game->board_array[bomber->pos_l + 1][bomber->pos_c] != BOMBER1
+            && bomber->game->board_array[bomber->pos_l + 1][bomber->pos_c] != BOMBER2);
     } else if (direction == RIGHT) {
         return (bomber->pos_c < bomber->game->columns_nb - 1
             && bomber->game->board_array[bomber->pos_l][bomber->pos_c + 1] != WALL
-            && bomber->game->board_array[bomber->pos_l][bomber->pos_c + 1] != OBSTACLE);
+            && bomber->game->board_array[bomber->pos_l][bomber->pos_c + 1] != OBSTACLE
+            && bomber->game->board_array[bomber->pos_l][bomber->pos_c + 1] != BOMBER1
+            && bomber->game->board_array[bomber->pos_l][bomber->pos_c + 1] != BOMBER2);
     } else if (direction == LEFT) {
         return (bomber->pos_c > 0
             && bomber->game->board_array[bomber->pos_l][bomber->pos_c - 1] != WALL
-            && bomber->game->board_array[bomber->pos_l][bomber->pos_c - 1] != OBSTACLE);
+            && bomber->game->board_array[bomber->pos_l][bomber->pos_c - 1] != OBSTACLE
+            && bomber->game->board_array[bomber->pos_l][bomber->pos_c - 1] != BOMBER1
+            && bomber->game->board_array[bomber->pos_l][bomber->pos_c - 1] != BOMBER2);
     }
 }
 
@@ -74,7 +106,15 @@ void move(bomber_t *bomber)
     bomber->prev_l = bomber->pos_l;
     bomber->prev_c = bomber->pos_c;
 
-    if (bomber->direction == UP) {
+    if (bomber->pos_c == bomber->game->columns_nb - 1 && bomber->direction == RIGHT
+        && bomber->game->board_array[bomber->pos_l][0] != BOMBER1
+        && bomber->game->board_array[bomber->pos_l][0] != BOMBER2) {
+        bomber->pos_c = 0;
+    } else if (bomber->pos_c == 0 && bomber->direction == LEFT
+        && bomber->game->board_array[bomber->pos_l][bomber->game->columns_nb - 1] != BOMBER1
+        && bomber->game->board_array[bomber->pos_l][bomber->game->columns_nb - 1] != BOMBER2) {
+        bomber->pos_c = bomber->game->columns_nb - 1;
+    } else if (bomber->direction == UP) {
         if (can_move(bomber, UP)) {
             bomber->pos_l--;
         }
@@ -93,7 +133,7 @@ void move(bomber_t *bomber)
     }
 
     bomber->game->board_array[bomber->prev_l][bomber->prev_c] = 0;
-    bomber->game->board_array[bomber->pos_l][bomber->pos_c] = BOMBER;
+    bomber->game->board_array[bomber->pos_l][bomber->pos_c] = bomber->id;
 }
 
 void place_bomb(bomber_t *bomber) 
@@ -254,17 +294,24 @@ void explode_bomb(int i, game_t *game)
                 {
                     explode_bomb(get_bomb_index(row, col, *game), game);
                 }
-                else if (game->board_array[row][col] == BOMBER)
+                else if (game->board_array[row][col] == BOMBER1)
                 {
                     game->board_array[row][col] = 0;
                     game->is_over = 1;
+                    game->winner = 2;
+                }
+                else if (game->board_array[row][col] == BOMBER2)
+                {
+                    game->board_array[row][col] = 0;
+                    game->is_over = 1;
+                    game->winner = 1;
                 } 
                 else if (game->board_array[row][col] == OBSTACLE)
                 {
                     game->board_array[row][col] = 0;
                 }
 
-                // game->board_array[row][col] = PARTICLE;
+                game->board_array[row][col] = PARTICLE;
             }
         }
     }
@@ -277,23 +324,22 @@ void explode_bomb(int i, game_t *game)
 
 void *game_loop(void *arg) 
 {
-    bomber_t *bomber = (bomber_t *)arg;
+    game_t *game = (game_t *)arg;
 
     while(1) 
     {
         pthread_mutex_lock(&dmutex);
 
-        move(bomber);
-        check_bombs(bomber->game);
+        check_bombs(game);
 
-        if (bomber->game->is_over)
+        if (game->is_over)
         {
-            printf("Game over\n");
+            printf("Game over, palyer %d won\n", game->winner);
 
             pthread_mutex_unlock(&dmutex);
             break;
         } else {
-            draw_game(*bomber->game);
+            draw_game(*game);
 
             pthread_mutex_unlock(&dmutex);
             sleep_ms(1.0 / FPS * 1000);
@@ -313,29 +359,48 @@ int main()
     game_t game;
     game.bombs_count = 0;
 
-    bomber_t bomber;
-    bomber.game = &game;
-    bomber.bomb_n = 2;
-    bomber.up = 'z';
-    bomber.down = 's';
-    bomber.left = 'q';
-    bomber.right = 'd';
-    bomber.bomb = ' ';
+    bomber_t bomber1;
+    bomber1.game = &game;
+    bomber1.id = BOMBER1;
+    bomber1.bomb_n = 2;
+    bomber1.up = 'z';
+    bomber1.down = 's';
+    bomber1.left = 'q';
+    bomber1.right = 'd';
+    bomber1.bomb = ' ';
 
-    // bomber_t bomber2;
-    // bomber2.board = &board;
-    // bomber2.up = 'A'; // up arrow
-    // bomber2.down = 'B'; // down arrow
-    // bomber2.left = 'D'; // left arrow
-    // bomber2.right = 'C'; // right arrow
+    bomber_t bomber2;
+    bomber2.game = &game;
+    bomber2.id = BOMBER2;
+    bomber2.bomb_n = 2;
+    bomber2.up = 'A'; // up arrow
+    bomber2.down = 'B'; // down arrow
+    bomber2.left = 'D'; // left arrow
+    bomber2.right = 'C'; // right arrow
+    bomber2.bomb = '*';
+
+    bombers_array_t bombers;
+    bombers.bomber1 = &bomber1;
+    bombers.bomber2 = &bomber2;
 
 	get_board("board.txt", &game);
-    place_bomber(&bomber);
-    // place_bomber(&bomber2);
+
+    place_bomber(&bomber1);
+    place_bomber(&bomber2);
+
     place_obstacles(&game);
     draw_game(game);
 
-    init_threads(&bomber);
+    // init_threads(&bomber);
+    pthread_t anim, keyboard;
+    pthread_create(&anim, NULL, game_loop, &game);
+    pthread_create(&keyboard, NULL, get_keystrock, &bombers);
+    
+    // pthread_create(&keyboard2, NULL, get_keystrock, &bomber2);
+    
     // init_threads(&bomber2);
+    // pthread_create(&anim, NULL, game_loop, &bomber2);
+    
+    pthread_join(anim, NULL);
 	return 0;
 }
