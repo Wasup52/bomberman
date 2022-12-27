@@ -75,8 +75,8 @@ typedef struct
 
 typedef struct
 {
-    bomb_t *bomber1;
-    bomb_t *bomber2;
+    bomber_t *bomber1;
+    bomber_t *bomber2;
 } bombers_array_t;
 
 void *get_keystrock(void *arg);
