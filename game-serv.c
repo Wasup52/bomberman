@@ -10,9 +10,7 @@ pthread_mutex_t dmutex = PTHREAD_MUTEX_INITIALIZER;
 void * get_keystrock(void *arg) 
 {
 
-    bombers_array_t * bombers = (bombers_array_t *)arg;
-    bomber_t * bomber1 = bombers->bomber1;
-    bomber_t * bomber2 = bombers->bomber2;
+    bomber_t * bomber = (bomber_t *)arg;
 
     char c;
     tcgetattr(0, &origtc);
@@ -20,8 +18,11 @@ void * get_keystrock(void *arg)
     newtc.c_lflag &= ~ICANON;
     newtc.c_lflag &= ~ECHO;
 
-    int count = 0;
+    int bd;
+
     while(1) {
+        char str_c[10];
+
         if (kbhit()) {
             // flush the chars in the buffer to get the last one
             while (kbhit()) {
@@ -29,44 +30,48 @@ void * get_keystrock(void *arg)
                 c = getchar();
                 tcsetattr(0, TCSANOW, &origtc);
             }
+
+            char tmp[2] = {c, '\0'};
+            strcpy(str_c, tmp);
+            strcpy(bomber->globals->sent_c, str_c);
+
+            // printf("Sending: %s\n", str_c);
+            bd = sendto(bomber->socket, str_c, 10, 0, (struct sockaddr *)p_exp, sizeof(struct sockaddr_in));
+            if (bd == -1) {
+                printf("Error while sending\n");
+            }
             
             pthread_mutex_lock(&dmutex);
-            if (c == bomber1->up) {
-                bomber1->direction = UP;
-            } else if (c == bomber1->down) {
-                bomber1->direction = DOWN;
-            } else if (c == bomber1->left) {
-                bomber1->direction = LEFT;
-            } else if (c == bomber1->right) {
-                bomber1->direction = RIGHT;
+            if (c == 'z') {
+                bomber->direction = UP;
+            } else if (c == 's') {
+                bomber->direction = DOWN;
+            } else if (c == 'q') {
+                bomber->direction = LEFT;
+            } else if (c == 'd') {
+                bomber->direction = RIGHT;
             } 
-            else if (c == bomber1->bomb) {
-                place_bomb(bomber1);
-            }
-
-            if (c == bomber2->up) {
-                bomber2->direction = UP;
-            } else if (c == bomber2->down) {
-                bomber2->direction = DOWN;
-            } else if (c == bomber2->left) {
-                bomber2->direction = LEFT;
-            } else if (c == bomber2->right) {
-                bomber2->direction = RIGHT;
-            } 
-            else if (c == bomber2->bomb) {
-                place_bomb(bomber2);
+            else if (c == ' ') {
+                place_bomb(bomber);
             }
             pthread_mutex_unlock(&dmutex);
         } else {
+            strcpy(str_c, "-1");
+            strcpy(bomber->globals->sent_c, str_c);
+
+            // printf("Sending: %s\n", str_c);
+            bd = sendto(bomber->socket, str_c, 10, 0, (struct sockaddr *)p_exp, sizeof(struct sockaddr_in));
+            if (bd == -1) {
+                printf("Error while sending\n");
+            }
+
             pthread_mutex_lock(&dmutex);
-            printf("IDDLE");
-            bomber1->direction = IDDLE;
-            bomber2->direction = IDDLE;
+            bomber->direction = IDDLE;
             pthread_mutex_unlock(&dmutex);
         }
 
-        move(bomber1);
-        move(bomber2);
+        printf("Sent: %s", bomber->globals->sent_c);
+        move(bomber);
 
         sleep_ms(1.0 / FPS * 1000);
     }
@@ -78,26 +83,34 @@ int can_move(bomber_t * bomber, int direction) {
         return (bomber->pos_l > 0 
             && bomber->game->board_array[bomber->pos_l - 1][bomber->pos_c] != WALL 
             && bomber->game->board_array[bomber->pos_l - 1][bomber->pos_c] != OBSTACLE
-            && bomber->game->board_array[bomber->pos_l - 1][bomber->pos_c] != BOMBER1
-            && bomber->game->board_array[bomber->pos_l - 1][bomber->pos_c] != BOMBER2);
+        );
+        //     && bomber->game->board_array[bomber->pos_l - 1][bomber->pos_c] != BOMBER1
+        //     && bomber->game->board_array[bomber->pos_l - 1][bomber->pos_c] != BOMBER2
+        // );
     } else if (direction == DOWN) {
         return (bomber->pos_l < bomber->game->lines_nb - 1
             && bomber->game->board_array[bomber->pos_l + 1][bomber->pos_c] != WALL
             && bomber->game->board_array[bomber->pos_l + 1][bomber->pos_c] != OBSTACLE
-            && bomber->game->board_array[bomber->pos_l + 1][bomber->pos_c] != BOMBER1
-            && bomber->game->board_array[bomber->pos_l + 1][bomber->pos_c] != BOMBER2);
+        );
+        //     && bomber->game->board_array[bomber->pos_l + 1][bomber->pos_c] != BOMBER1
+        //     && bomber->game->board_array[bomber->pos_l + 1][bomber->pos_c] != BOMBER2
+        // );
     } else if (direction == RIGHT) {
         return (bomber->pos_c < bomber->game->columns_nb - 1
             && bomber->game->board_array[bomber->pos_l][bomber->pos_c + 1] != WALL
             && bomber->game->board_array[bomber->pos_l][bomber->pos_c + 1] != OBSTACLE
-            && bomber->game->board_array[bomber->pos_l][bomber->pos_c + 1] != BOMBER1
-            && bomber->game->board_array[bomber->pos_l][bomber->pos_c + 1] != BOMBER2);
+        );
+        //     && bomber->game->board_array[bomber->pos_l][bomber->pos_c + 1] != BOMBER1
+        //     && bomber->game->board_array[bomber->pos_l][bomber->pos_c + 1] != BOMBER2
+        // );
     } else if (direction == LEFT) {
         return (bomber->pos_c > 0
             && bomber->game->board_array[bomber->pos_l][bomber->pos_c - 1] != WALL
             && bomber->game->board_array[bomber->pos_l][bomber->pos_c - 1] != OBSTACLE
-            && bomber->game->board_array[bomber->pos_l][bomber->pos_c - 1] != BOMBER1
-            && bomber->game->board_array[bomber->pos_l][bomber->pos_c - 1] != BOMBER2);
+        );
+        //     && bomber->game->board_array[bomber->pos_l][bomber->pos_c - 1] != BOMBER1
+        //     && bomber->game->board_array[bomber->pos_l][bomber->pos_c - 1] != BOMBER2
+        // );
     }
 }
 
@@ -107,12 +120,14 @@ void move(bomber_t *bomber)
     bomber->prev_c = bomber->pos_c;
 
     if (bomber->pos_c == bomber->game->columns_nb - 1 && bomber->direction == RIGHT
-        && bomber->game->board_array[bomber->pos_l][0] != BOMBER1
-        && bomber->game->board_array[bomber->pos_l][0] != BOMBER2) {
+        // && bomber->game->board_array[bomber->pos_l][0] != BOMBER1
+        // && bomber->game->board_array[bomber->pos_l][0] != BOMBER2
+        ) {
         bomber->pos_c = 0;
     } else if (bomber->pos_c == 0 && bomber->direction == LEFT
-        && bomber->game->board_array[bomber->pos_l][bomber->game->columns_nb - 1] != BOMBER1
-        && bomber->game->board_array[bomber->pos_l][bomber->game->columns_nb - 1] != BOMBER2) {
+        // && bomber->game->board_array[bomber->pos_l][bomber->game->columns_nb - 1] != BOMBER1
+        // && bomber->game->board_array[bomber->pos_l][bomber->game->columns_nb - 1] != BOMBER2
+        ) {
         bomber->pos_c = bomber->game->columns_nb - 1;
     } else if (bomber->direction == UP) {
         if (can_move(bomber, UP)) {
@@ -325,10 +340,13 @@ void explode_bomb(int i, game_t *game)
 void *game_loop(void *arg) 
 {
     game_t *game = (game_t *)arg;
+    char *client_key;
 
     while(1) 
     {
         pthread_mutex_lock(&dmutex);
+
+        // client_key = receive_custom(game->socket);
 
         check_bombs(game);
 
@@ -340,6 +358,8 @@ void *game_loop(void *arg)
             break;
         } else {
             draw_game(*game);
+            printf("sent key: %s\n", game->globals->sent_c);
+            // printf("client key: %s\n", client_key);
 
             pthread_mutex_unlock(&dmutex);
             sleep_ms(1.0 / FPS * 1000);
@@ -356,45 +376,79 @@ void init_threads(bomber_t * bomber) {
 
 int main() 
 {
-    game_t game;
-    game.bombs_count = 0;
+    int socket = init_serveur();
+
+    globals_t globals;
+    
+    // game_t game;
+    // game.bombs_count = 0;
+    // game.socket = socket;
+    // game.globals = &globals;
 
     bomber_t bomber1;
-    bomber1.game = &game;
+    // bomber1.game = &game;
     bomber1.id = BOMBER1;
     bomber1.bomb_n = 2;
-    bomber1.up = 'z';
-    bomber1.down = 's';
-    bomber1.left = 'q';
-    bomber1.right = 'd';
-    bomber1.bomb = ' ';
+    bomber1.socket = socket;
+    bomber1.globals = &globals;
 
     bomber_t bomber2;
-    bomber2.game = &game;
-    bomber2.id = BOMBER2;
+    // bomber2.game = &game;
+    bomber2.id = BOMBER1;
     bomber2.bomb_n = 2;
-    bomber2.up = 'A'; // up arrow
-    bomber2.down = 'B'; // down arrow
-    bomber2.left = 'D'; // left arrow
-    bomber2.right = 'C'; // right arrow
-    bomber2.bomb = '*';
+    bomber2.socket = socket;
+    bomber2.globals = &globals;
 
-    bombers_array_t bombers;
-    bombers.bomber1 = &bomber1;
-    bombers.bomber2 = &bomber2;
+    // bombers_array_t bombers;
+    // bombers.bomber1 = &bomber1;
+    // bombers.bomber2 = &bomber2;
+    
+	// get_board("board.txt", &game);
+    // place_bomber(&bomber2);
 
-	get_board("board.txt", &game);
+    // place_obstacles(&game);
+
+    printf("waiting for client...\n");
+    char *client_init_pos = receive_data(socket, 10);
+    printf("client ip adress: %s\n", inet_ntoa(p_exp->sin_addr));
+    printf("client initial pos: %s\n", client_init_pos);
+
+    bomber2.pos_l = atoi(strtok(client_init_pos, ";"));
+    bomber2.pos_c = atoi(strtok(NULL, ";"));
+
+    game_t *game_ptr = receive_data(socket, sizeof(game_t));
+    game_t game = *game_ptr;
+
+    // print every var in game
+    printf("game lines: %d\n", game.lines_nb);
+    printf("game columns: %d\n", game.columns_nb);
+    printf("game bombs count: %d\n", game.bombs_count);
+    printf("game socket: %d\n", game.socket);
+    printf("game is over: %d\n", game.is_over);
+    printf("game winner: %d\n", game.winner);
+    printf("game bombs list: %d\n", game.bombs_list[0].pos_l);
+    printf("game globals: %d\n", game.globals->sent_c[0]);
+    printf("game board array: %d\n", game.board_array[0][0]);
+
+    bomber1.game = game_ptr;
+    bomber2.game = game_ptr;
 
     place_bomber(&bomber1);
-    place_bomber(&bomber2);
 
-    place_obstacles(&game);
+    char init_pos[10];
+    sprintf(init_pos, "%d;%d", bomber1.pos_l, bomber1.pos_c);
+
+    int bd = sendto(socket, init_pos, 20, 0, (struct sockaddr *)p_exp, sizeof(struct sockaddr_in));
+	if (bd == -1) {
+		printf("Error while sending\n");
+    }
+
     draw_game(game);
 
     // init_threads(&bomber);
     pthread_t anim, keyboard;
     pthread_create(&anim, NULL, game_loop, &game);
-    pthread_create(&keyboard, NULL, get_keystrock, &bombers);
+    pthread_create(&keyboard, NULL, get_keystrock, &bomber1);
     
     // pthread_create(&keyboard2, NULL, get_keystrock, &bomber2);
     

@@ -86,7 +86,7 @@ if __name__ == "__main__":
     # a nxn grid
     grid = [[0 for i in range(col_nb)] for j in range(row_nb)]
 
-    r = 4
+    r = 1
     center_row = 5
     center_col = 10
 
@@ -106,9 +106,9 @@ if __name__ == "__main__":
     #     grid[center_row + 1][center_col - wall_width//2 + i] = 1
 
     # top wall
-    wall_width = 3
-    for i in range(wall_width):
-        grid[center_row - 1][center_col - wall_width//2 + i] = 1
+    # wall_width = 3
+    # for i in range(wall_width):
+    #     grid[center_row - 1][center_col - wall_width//2 + i] = 1
 
     # ones on the left and right
     for i in range(col_nb):

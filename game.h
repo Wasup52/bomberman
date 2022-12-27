@@ -4,12 +4,21 @@
 #include <time.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <strings.h>
 #include <math.h>
 
-// FOR LINUX
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+struct sockaddr_in *p_exp; //pointeur adresse internet de l'expediteur (depuis UDP recu)
+
 #include <termios.h>
 #include <fcntl.h>
 static struct termios origtc, newtc;
+
+#define PORT 5677
 
 #define CLOCK_MONOTONIC 1 // used for clock_gettime
 
@@ -45,6 +54,11 @@ typedef struct
 //     int timer; // the timer of the particle
 // } particle_t;
 
+typedef struct
+{
+    char sent_c[10];
+} globals_t;
+
 typedef struct 
 {
     int **board_array; // the board
@@ -54,6 +68,9 @@ typedef struct
     bomb_t bombs_list[MAX_BOMBS]; // list of bombs
     int is_over; // 1 if the game is over
     int winner; // 1 if the winner is the first player, 2 if the winner is the second player
+
+    int socket;
+    globals_t *globals;
 } game_t;
 
 typedef struct
@@ -66,18 +83,12 @@ typedef struct
     int prev_c; // the previous column of the bomber
     int bomb_n; // the timer and range of the bomb
     enum direction direction; // the current direction of the bomber
-    char up; // the key to move up
-    char down; // the key to move down
-    char left; // the key to move left
-    char right; // the key to move right
-    char bomb; // the key to drop a bomb
+
+    int socket;
+    globals_t *globals;
 } bomber_t;
 
-typedef struct
-{
-    bomber_t *bomber1;
-    bomber_t *bomber2;
-} bombers_array_t;
+
 
 void *get_keystrock(void *arg);
 void get_board(char *fichier, game_t *board);
@@ -96,3 +107,8 @@ float linear_interpolation(float x1, float y1, float x2, float y2, float t);
 int is_in_explode_zone(int pos_l, int pos_c, bomb_t bomb, game_t game);
 int get_bomb_index(int pos_l, int pos_c, game_t game);
 double *linspace(double a, double b, int n);
+
+int init_serveur();
+int init_client();
+void *receive_data(int s, size_t data_size);
+void send_data(int s, char* adresse, void* message, size_t data_size);
