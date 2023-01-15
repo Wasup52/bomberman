@@ -34,10 +34,13 @@ static struct termios origtc, newtc;
 #define BOMBER2 6
 
 #define MAX_BOMBS 10
+#define MAX_PARTICLES 100
+
+#define OBSTACLES_NB 10
+
+#define FPS 10
 
 enum direction {UP, DOWN, LEFT, RIGHT, IDDLE};
-// enum bomber {BOMBER1, BOMBER2};
-
 
 typedef struct
 {
@@ -45,32 +48,38 @@ typedef struct
     int pos_c; // the current column of the bomb
     int range; // the range of the bomb
     int timer; // the timer of the bomb
+    int owner_id; // the id of the owner of the bomb
 } bomb_t;
-
-// typedef struct
-// {
-//     int pos_l; // the current line of the particle
-//     int pos_c; // the current column of the particle
-//     int timer; // the timer of the particle
-// } particle_t;
 
 typedef struct
 {
-    char sent_c[10];
-} globals_t;
+    int pos_l; // the current line of the particle
+    int pos_c; // the current column of the particle
+    int timer; // the timer of the particle
+} particle_t;
+
+typedef struct
+{
+    int bombs_placed; // number of bombs placed
+    int obstacles_destroyed; // number of bombs exploded
+    int bomb_n; // the range of the bomb 
+} stats_t;
 
 typedef struct 
 {
-    int **board_array; // the board
+    int board_array[9][30]; // the board
     int lines_nb; // number of lines in the board
     int columns_nb; // number of columns in the board
     int bombs_count; // number of bombs
     bomb_t bombs_list[MAX_BOMBS]; // list of bombs
+    particle_t particles_array[MAX_PARTICLES];
+    int particles_count; // number of particles
     int is_over; // 1 if the game is over
     int winner; // 1 if the winner is the first player, 2 if the winner is the second player
+    stats_t bomber1_stats; // stats of the first player
+    stats_t bomber2_stats; // stats of the second player
 
-    int socket;
-    globals_t *globals;
+    int socket; 
 } game_t;
 
 typedef struct
@@ -83,11 +92,16 @@ typedef struct
     int prev_c; // the previous column of the bomber
     int bomb_n; // the timer and range of the bomb
     enum direction direction; // the current direction of the bomber
+    int placed_bomb; // 1 if the bomber has placed a bomb
 
     int socket;
-    globals_t *globals;
 } bomber_t;
 
+typedef struct
+{
+    bomber_t *bomber1;
+    bomber_t *bomber2;
+} bombers_array_t;
 
 
 void *get_keystrock(void *arg);
@@ -100,13 +114,15 @@ void place_bomb(bomber_t *bomber);
 void move(bomber_t *bomber);
 int can_move(bomber_t * bomber, int direction);
 void *game_loop(void *arg);
-void explode_bomb(int i, game_t *game);
+void explode_bomb(bomb_t bomb, game_t *game);
 void check_bombs(game_t *game);
 int custom_round(float x);
 float linear_interpolation(float x1, float y1, float x2, float y2, float t);
 int is_in_explode_zone(int pos_l, int pos_c, bomb_t bomb, game_t game);
 int get_bomb_index(int pos_l, int pos_c, game_t game);
 double *linspace(double a, double b, int n);
+float get_score(stats_t stats);
+void print_scores(game_t game);
 
 int init_serveur();
 int init_client();

@@ -1,13 +1,13 @@
 // #include "jeu.h"
 #include "utils.c"
 
-#define FPS 10
+// #define FPS 10
 
 pthread_mutex_t dmutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 //https://stackoverflow.com/questions/41928673/implementing-a-keypress-event-in-c-with-multiple-threads
-void * get_keystrock(void *arg) 
+void * get_keystrock(void *arg)
 {
 
     bomber_t * bomber = (bomber_t *)arg;
@@ -29,328 +29,108 @@ void * get_keystrock(void *arg)
                 c = getchar();
                 tcsetattr(0, TCSANOW, &origtc);
             }
-
-            strcpy(str_c, c);
-            strcpy(bomber->globals->sent_c, str_c);
+           
+            pthread_mutex_lock(&dmutex);
+            // char tmp[2] = {c, '\0'};
+            // strcpy(str_c, tmp);
+            // strcpy(bomber->game->globals->sent_c, str_c);
 
             // printf("Sending: %s\n", str_c);
-            send_data(bomber->socket, "localhost", str_c, strlen(str_c));
-            
-            pthread_mutex_lock(&dmutex);
+            // send_data(bomber->socket, "localhost", str_c, strlen(str_c));
+
             if (c == 'z') {
                 bomber->direction = UP;
+                // printf("UP\n");
             } else if (c == 's') {
                 bomber->direction = DOWN;
+                // printf("DOWN\n");
             } else if (c == 'q') {
                 bomber->direction = LEFT;
+                // printf("LEFT\n");
             } else if (c == 'd') {
                 bomber->direction = RIGHT;
-            } 
+                // printf("RIGHT\n");
+            }
             else if (c == ' ') {
-                place_bomb(bomber);
+                bomber->placed_bomb = 1;
+                // place_bomb(bomber);
+                // printf("-------- BOMB\n");
+                // printf("BOMB\n");
             }
             pthread_mutex_unlock(&dmutex);
         } else {
-            strcpy(str_c, "-1");
-            strcpy(bomber->globals->sent_c, str_c);
+            pthread_mutex_lock(&dmutex);
+            // strcpy(str_c, "-1");
+            // strcpy(bomber->game->globals->sent_c, str_c);
 
             // printf("Sending: %s\n", str_c);
-            send_data(bomber->socket, "localhost", str_c, strlen(str_c));
-            
-            pthread_mutex_lock(&dmutex);
+            // send_data(bomber->socket, "localhost", str_c, strlen(str_c));
             bomber->direction = IDDLE;
+            // printf("IDLE\n");
             pthread_mutex_unlock(&dmutex);
         }
 
-        move(bomber);
+        // move(bomber);
+
+        // send_data(bomber->socket, "localhost", bomber->game, sizeof(game_t));
+
+
+        // printf("sent key: %s\n", bomber->game->globals->sent_c);
+        // move(bomber);
 
         sleep_ms(1.0 / FPS * 1000);
     }
 }
 
-int can_move(bomber_t * bomber, int direction) {
-    // check if the next position is a wall or an obstacle or out of the board or a bomber
-    if (direction == UP) {
-        return (bomber->pos_l > 0 
-            && bomber->game->board_array[bomber->pos_l - 1][bomber->pos_c] != WALL 
-            && bomber->game->board_array[bomber->pos_l - 1][bomber->pos_c] != OBSTACLE
-        );
-        //     && bomber->game->board_array[bomber->pos_l - 1][bomber->pos_c] != BOMBER1
-        //     && bomber->game->board_array[bomber->pos_l - 1][bomber->pos_c] != BOMBER2
-        // );
-    } else if (direction == DOWN) {
-        return (bomber->pos_l < bomber->game->lines_nb - 1
-            && bomber->game->board_array[bomber->pos_l + 1][bomber->pos_c] != WALL
-            && bomber->game->board_array[bomber->pos_l + 1][bomber->pos_c] != OBSTACLE
-        );
-        //     && bomber->game->board_array[bomber->pos_l + 1][bomber->pos_c] != BOMBER1
-        //     && bomber->game->board_array[bomber->pos_l + 1][bomber->pos_c] != BOMBER2
-        // );
-    } else if (direction == RIGHT) {
-        return (bomber->pos_c < bomber->game->columns_nb - 1
-            && bomber->game->board_array[bomber->pos_l][bomber->pos_c + 1] != WALL
-            && bomber->game->board_array[bomber->pos_l][bomber->pos_c + 1] != OBSTACLE
-        );
-        //     && bomber->game->board_array[bomber->pos_l][bomber->pos_c + 1] != BOMBER1
-        //     && bomber->game->board_array[bomber->pos_l][bomber->pos_c + 1] != BOMBER2
-        // );
-    } else if (direction == LEFT) {
-        return (bomber->pos_c > 0
-            && bomber->game->board_array[bomber->pos_l][bomber->pos_c - 1] != WALL
-            && bomber->game->board_array[bomber->pos_l][bomber->pos_c - 1] != OBSTACLE
-        );
-        //     && bomber->game->board_array[bomber->pos_l][bomber->pos_c - 1] != BOMBER1
-        //     && bomber->game->board_array[bomber->pos_l][bomber->pos_c - 1] != BOMBER2
-        // );
-    }
-}
-
-void move(bomber_t *bomber)
+void *game_loop(void *arg)
 {
-    bomber->prev_l = bomber->pos_l;
-    bomber->prev_c = bomber->pos_c;
+    bombers_array_t *bomers = (bombers_array_t *)arg;
 
-    if (bomber->pos_c == bomber->game->columns_nb - 1 && bomber->direction == RIGHT
-        // && bomber->game->board_array[bomber->pos_l][0] != BOMBER1
-        // && bomber->game->board_array[bomber->pos_l][0] != BOMBER2
-        ) {
-        bomber->pos_c = 0;
-    } else if (bomber->pos_c == 0 && bomber->direction == LEFT
-        // && bomber->game->board_array[bomber->pos_l][bomber->game->columns_nb - 1] != BOMBER1
-        // && bomber->game->board_array[bomber->pos_l][bomber->game->columns_nb - 1] != BOMBER2
-        ) {
-        bomber->pos_c = bomber->game->columns_nb - 1;
-    } else if (bomber->direction == UP) {
-        if (can_move(bomber, UP)) {
-            bomber->pos_l--;
-        }
-    } else if (bomber->direction == DOWN) {
-        if (can_move(bomber, DOWN)) {
-            bomber->pos_l++;
-        }
-    } else if (bomber->direction == RIGHT) {
-        if (can_move(bomber, RIGHT)) {
-            bomber->pos_c++;
-        }
-    } else if (bomber->direction == LEFT) {
-        if (can_move(bomber, LEFT)) {
-            bomber->pos_c--;
-        }
-    }
+    bomber_t *bomber1 = bomers->bomber1;
+    bomber_t *bomber2 = bomers->bomber2;
+    game_t *game = bomber2->game;
 
-    bomber->game->board_array[bomber->prev_l][bomber->prev_c] = 0;
-    bomber->game->board_array[bomber->pos_l][bomber->pos_c] = bomber->id;
-}
+    // char *serv_key;
 
-void place_bomb(bomber_t *bomber) 
-{
-    bomb_t bomb;
-    bomb.pos_l = bomber->pos_l;
-    bomb.pos_c = bomber->pos_c;
-    bomb.range = bomber->bomb_n;
-    bomb.timer = bomber->bomb_n * FPS;
-
-    if (bomber->game->bombs_count < MAX_BOMBS)
+    while(1)
     {
-        bomber->game->board_array[bomb.pos_l][bomb.pos_c] = BOMB;
-        bomber->game->bombs_list[bomber->game->bombs_count] = bomb;
-        bomber->game->bombs_count++;
-    } else {
-        printf("Too many bombs on the board\n");
-    }
-}
 
-void check_bombs(game_t *game) 
-{
-    for (int i = 0; i < game->bombs_count; i++) {
-        game->bombs_list[i].timer--;
-        
-        if (game->bombs_list[i].timer == 0) {
-            explode_bomb(i, game);
-        }
-    }
-}
-
-float linear_interpolation(float x1, float y1, float x2, float y2, float t)
-{
-    return y1 + (y2 - y1) / (x2 - x1) * (t - x1);
-}
-
-double *linspace(double a, double b, int n)
-{
-    double *array = malloc(n * sizeof(double));
-    double step = (b - a) / (n - 1);
-
-    for (int i = 0; i < n; i++)
-        array[i] = a + step * i;
-
-    return array;
-}
-
-int is_in_explode_zone(int pos_l, int pos_c, bomb_t bomb, game_t game)
-{
-    if (pow((pos_l - bomb.pos_l), 2) + pow((pos_c - bomb.pos_c), 2) <= pow(bomb.range, 2))
-    {
-        int x1 = bomb.pos_c;
-        int y1 = bomb.pos_l;
-
-        int x2 = pos_c;
-        int y2 = pos_l;
-
-        // if the line is vertical
-        if (x1 == x2) {
-            if (y1 < y2) {
-                for (int i = y1; i <= y2; i++) {
-                    if (game.board_array[i][x1] == WALL) {
-                        return 0;
-                    }
-                }
-            } else {
-                for (int i = y1; i >= y2; i--) {
-                    if (game.board_array[i][x1] == WALL) {
-                        return 0;
-                    }
-                }
-            }
-        }
-        // if the line is horizontal
-        else if (y1 == y2) {
-            if (x1 < x2) {
-                for (int i = x1; i <= x2; i++) {
-                    if (game.board_array[y1][i] == WALL) {
-                        return 0;
-                    }
-                }
-            } else {
-                for (int i = x1; i >= x2; i--) {
-                    if (game.board_array[y1][i] == WALL) {
-                        return 0;
-                    }
-                }
-            }
-        }
-        // if the line is diagonal
-        else {
-            int n = 0;
-            int n1 = abs(x1-x2)+1;
-            int n2 = abs(y1-y2)+1;
-
-            if (n1 < n2) {
-                n = n2;
-            } else {
-                n = n1;
-            }
-
-            double *linspace_array = linspace(x1, x2, n);
-
-            if (x1 < x2) {
-                for (int i = 0; i < n; i++) {
-                    int x = round(linspace_array[i]);
-                    int y = round(linear_interpolation(x1, y1, x2, y2, linspace_array[i]));
-
-                    if (game.board_array[y][x] == WALL) {
-                        return 0;
-                    }
-                }
-            } else {
-                for (int i = 0; i < n; i++) {
-                    int x = round(linspace_array[i]);
-                    int y = round(linear_interpolation(x1, y1, x2, y2, linspace_array[i]));
-
-                    if (game.board_array[y][x] == WALL) {
-                        return 0;
-                    }
-                }
-            }
-
-            // free(linspace_array);
-        }
-
-        return 1;
-    } else {
-        return 0;
-    }
-}
-
-int get_bomb_index(int pos_l, int pos_c, game_t game)
-{
-    for (int i = 0; i < game.bombs_count; i++) {
-        if (game.bombs_list[i].pos_l == pos_l && game.bombs_list[i].pos_c == pos_c) {
-            return i;
-        }
-    }
-
-    return -1;
-}
-
-/*
- * Explode every obstacle in the range of the bomb in a circle
- */
-void explode_bomb(int i, game_t *game)
-{
-    bomb_t bomb = game->bombs_list[i];
-
-    for (int row = 0; row < game->lines_nb; row++) 
-    {
-        for (int col = 0; col < game->columns_nb; col++) 
-        {
-            if (is_in_explode_zone(row, col, bomb, *game)) 
-            {
-                if (row != bomb.pos_l && col != bomb.pos_c && game->board_array[row][col] == BOMB) 
-                {
-                    explode_bomb(get_bomb_index(row, col, *game), game);
-                }
-                else if (game->board_array[row][col] == BOMBER1)
-                {
-                    game->board_array[row][col] = 0;
-                    game->is_over = 1;
-                    game->winner = 2;
-                }
-                else if (game->board_array[row][col] == BOMBER2)
-                {
-                    game->board_array[row][col] = 0;
-                    game->is_over = 1;
-                    game->winner = 1;
-                } 
-                else if (game->board_array[row][col] == OBSTACLE)
-                {
-                    game->board_array[row][col] = 0;
-                }
-
-                game->board_array[row][col] = PARTICLE;
-            }
-        }
-    }
-
-    // remove the bomb from the game
-    game->board_array[game->bombs_list[i].pos_l][game->bombs_list[i].pos_c] = 0;
-    game->bombs_list[i] = game->bombs_list[game->bombs_count - 1];
-    game->bombs_count--;
-}
-
-void *game_loop(void *arg) 
-{
-    game_t *game = (game_t *)arg;
-    char *serv_key;
-
-    while(1) 
-    {
+        // printf("waiting for server key...\n");
+        // serv_key = receive_data(game->socket, 2);
+       
+        game = receive_data(game->socket, sizeof(game_t));
+        // printf("waiting for server game...\n");
         pthread_mutex_lock(&dmutex);
 
-        serv_key = receive_data(game->socket, 2);
+        bomber1->game = game;
+        bomber2->game = game;
+
+        move(bomber2);
+        if (bomber2->placed_bomb) {
+            place_bomb(bomber2);
+            bomber2->placed_bomb = 0;
+        }
 
         check_bombs(game);
+        check_particles(game);
+
+        // printf("sending game data...\n");
+        send_data(game->socket, "localhost", bomber2->game, sizeof(game_t));
 
         if (game->is_over)
         {
-            printf("Game over, palyer %d won\n", game->winner);
+            printf("Game over, player %d won\n", game->winner);
+
+            send_data(game->socket, "localhost", game, sizeof(game_t));
 
             pthread_mutex_unlock(&dmutex);
             break;
         } else {
             draw_game(*game);
-            printf("sent key: %s\n", game->globals->sent_c);
-            printf("server key: %s\n", serv_key);
+            print_scores(*game);
+            // printf("Bomer1: %f, Bomber2: %f\n", get_score(bomber1), get_score(bomber2));
+            // printf("sent key: %s\n", game->globals->sent_c);
+            // printf("server key: %s\n", serv_key);
 
             pthread_mutex_unlock(&dmutex);
             sleep_ms(1.0 / FPS * 1000);
@@ -365,76 +145,93 @@ void init_threads(bomber_t * bomber) {
     pthread_join(anim, NULL);
 }
 
-int main() 
+int main()
 {
     int socket = init_client();
-    
-    globals_t globals;
-    
+
+    int bomber_bomb_n;
+    printf("n: ");
+    scanf("%d", &bomber_bomb_n);
+
+    printf("sending n to server...\n");
+    send_data(socket, "localhost", &bomber_bomb_n, sizeof(int));
+
+    int *serv_bomb_n = receive_data(socket, sizeof(int));
+    printf("server n: %d\n", *serv_bomb_n);
+   
     game_t game;
     game.bombs_count = 0;
+    game.particles_count = 0;
     game.socket = socket;
-    game.globals = &globals;
+    game.is_over = 0;
 
     bomber_t bomber1;
     bomber1.game = &game;
     bomber1.id = BOMBER1;
+    bomber1.bomb_n = *serv_bomb_n;
+    bomber1.placed_bomb = 0;
     bomber1.socket = socket;
-    bomber1.globals = &globals;
+
+    stats_t bomber1_stats;
+    bomber1_stats.bombs_placed = 0;
+    bomber1_stats.obstacles_destroyed = 0;
+    bomber1_stats.bomb_n = *serv_bomb_n;
+
+    game.bomber1_stats = bomber1_stats;
 
     bomber_t bomber2;
     bomber2.game = &game;
-    bomber2.id = BOMBER1;
+    bomber2.id = BOMBER2;
+    bomber2.bomb_n = bomber_bomb_n;
+    bomber2.placed_bomb = 0;
     bomber2.socket = socket;
-    bomber2.globals = &globals;
 
-    // bombers_array_t bombers;
-    // bombers.bomber1 = &bomber1;
-    // bombers.bomber2 = &bomber2;
-    
-	get_board("board.txt", &game);
+    stats_t bomber2_stats;
+    bomber2_stats.bombs_placed = 0;
+    bomber2_stats.obstacles_destroyed = 0;
+    bomber2_stats.bomb_n = bomber_bomb_n;
+
+    game.bomber2_stats = bomber2_stats;
+
+   
+    get_board("board.txt", &game);
 
     // place_bomber(&bomber1);
     place_bomber(&bomber2);
-
     place_obstacles(&game);
 
-    // print every var in game
-    printf("game lines: %d\n", game.lines_nb);
-    printf("game columns: %d\n", game.columns_nb);
-    printf("game bombs count: %d\n", game.bombs_count);
-    printf("game socket: %d\n", game.socket);
-    printf("game is over: %d\n", game.is_over);
-    printf("game winner: %d\n", game.winner);
-    printf("game bombs list: %d\n", game.bombs_list[0].pos_l);
-    printf("game globals: %d\n", game.globals->sent_c[0]);
-    printf("game board array: %d\n", game.board_array[0][0]);
+    // char init_pos[10];
+    // sprintf(init_pos, "%d;%d", bomber2.pos_l, bomber2.pos_c);
+    // printf("sending initial position to server...\n");
+    // send_data(socket, "localhost", init_pos, strlen(init_pos));
 
-    char init_pos[10];
-    sprintf(init_pos, "%d;%d", bomber2.pos_l, bomber2.pos_c);
-    printf("sending initial position to server...\n");
-	send_data(socket, "localhost", init_pos, strlen(init_pos));
     printf("sending game to server...\n");
-    send_data(socket, "localhost", &game, sizeof(&game));
+    send_data(socket, "localhost", &game, sizeof(game));
 
-	char *serv_init_pos = receive_data(socket, 10);
+    char *serv_init_pos = receive_data(socket, 10);
     printf("server initial pos: %s\n", serv_init_pos);
 
-    bomber1.pos_l = atoi(strtok(serv_init_pos, ";"));
-    bomber1.pos_c = atoi(strtok(NULL, ";"));
+    bomber1.pos_l = atoi(strtok(serv_init_pos, ";")); // strtok returns the first token
+    bomber1.pos_c = atoi(strtok(NULL, ";")); // strtok returns the second token
+
+
+    game.board_array[bomber1.pos_l][bomber1.pos_c] = BOMBER1;
+
+    bomber1.game = &game;
+    bomber2.game = &game;
 
     draw_game(game);
+    print_scores(game);
 
-    // init_threads(&bomber);
+
+    bombers_array_t bombers;
+    bombers.bomber1 = &bomber1;
+    bombers.bomber2 = &bomber2;
+
     pthread_t anim, keyboard;
-    pthread_create(&anim, NULL, game_loop, &game);
+    pthread_create(&anim, NULL, game_loop, &bombers);
     pthread_create(&keyboard, NULL, get_keystrock, &bomber2);
-    
-    // pthread_create(&keyboard2, NULL, get_keystrock, &bomber2);
-    
-    // init_threads(&bomber2);
-    // pthread_create(&anim, NULL, game_loop, &bomber2);
-    
+   
     pthread_join(anim, NULL);
-	return 0;
+    return 0;
 }
